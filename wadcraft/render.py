@@ -15,88 +15,18 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-"""Implement transformation from WAD levels to proper minecraft object."""
+"""Implement transformation from WAD levels to proper minecraft object.
+
+Keep in mind the following mapping for coordinates
+   Doom X      -> Minecraft X
+   Doom Y      -> Minecraft Z
+   Doom height -> Minecraft Y
+"""
 
 
 import math
 
-import nbt
-
-
-class MinecraftMap(object):
-  """Store a rendered Doom level."""
-  
-
-  def __init__(self, sizex, sizey):
-    self.sizex = int(sizex)
-    self.sizey = int(sizey)
-
-    self._data = {}
-
-  def _convkey(self, key):
-    """Convert a key (vertex or x,y tuple) to a map coordinate."""
-
-    if isinstance(key, Vertice):
-      x = key.x
-      y = key.y
-    else:
-      x = key[0]
-      y = key[1]
-
-    x = int(x)
-    y = int(y)
-    assert x >= 0 and x < self.sizex
-    assert y >= 0 and y < self.sizex
-    return x, y
-
-  def __getitem__(self, key):
-    return self._data[self._convkey(key)]
-
-  def __setitem__(self, key, value):
-    self._data[self._convkey(key)] = value
-
-  def dump(self):
-    """Generate a string representing the level."""
-    s = ''
-    for y in xrange(0, self.sizey):
-      for x in xrange(0, self.sizex):
-        key = self._convkey((x, y))
-        if key in self._data:
-          c = '#'
-        else:
-          c = ' '
-        s += c
-      s += '\n'
-    return s
-
-  def generate_nbt(self):
-    nbtfile = nbt.NBTFile()
-    nbtfile.name = "Schematic"
-
-    nbtfile.tags.append(nbt.TAG_String(name="Materials", value="Alpha"))
-    
-    nbtfile.tags.append(nbt.TAG_List(name="Entities", type=nbt.TAG_Compound))
-    nbtfile.tags.append(nbt.TAG_List(name="TileEntities", type=nbt.TAG_Compound))
-
-    nbtfile.tags.append(nbt.TAG_Short(name="Height", value=1))
-    nbtfile.tags.append(nbt.TAG_Short(name="Width", value=self.sizex))
-    nbtfile.tags.append(nbt.TAG_Short(name="Length", value=self.sizey))
-   
-    blocks = nbt.TAG_Byte_Array()
-    blocks.name = "Blocks"
-
-    blocks.value = "\x00" * (self.sizex * self.sizey)
-    for x, y in self._data.iterkeys():
-      idx = y * self.sizex + x
-      blocks.value = blocks.value[:idx] + "\x01" + blocks.value[idx+1:]
-    nbtfile.tags.append(blocks)
-    
-    data = nbt.TAG_Byte_Array()
-    data.name = "Data"
-    data.value = "\x00" * len(blocks.value)
-    nbtfile.tags.append(data)
-
-    return nbtfile
+from wadcraft import minecraft
 
 
 class Transform(object):
@@ -163,12 +93,12 @@ def renderlevel(level):
   # calculating the coordinates of the most extreme point.
   assert tr(bbox1).x >= 0.0
   assert tr(bbox1).y >= 0.0
-  mcmap = MinecraftMap(math.ceil(tr(bbox2).x)+1, math.ceil(tr(bbox2).y)+1)
+  
+  mcmap = minecraft.Schematic(math.ceil(tr(bbox2).x)+1, 1, math.ceil(tr(bbox2).y)+1)
 
   for v in verts.itervalues():
-    mcmap[tr(v)] = 1
+    mcmap[tr(v).x, 0, tr(v).y] = 0x32
 
-  
   # Now, render each subsector
   segs = level.getglsegs()
   linedefs = level.getlinedefs()
@@ -204,5 +134,5 @@ def renderlevel(level):
     assert sector_idx is not None
     #print ssector_verts, sector_idx
  
-  nbtfile = mcmap.generate_nbt()
+  nbtfile = mcmap.build_nbt()
   nbtfile.write_file("level.schematic")
