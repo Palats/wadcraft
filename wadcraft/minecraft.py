@@ -28,6 +28,12 @@ class Coord(object):
     self.x = x
     self.y = y
     self.z = z
+  
+  def __str__(self):
+    return 'C(%s,%s,%s)' % (self.x, self.y, self.z)
+
+  def __repr__(self):
+    return str(self)
 
 
 class Schematic(object):
@@ -48,9 +54,9 @@ class Schematic(object):
     """Convert a key (x,y,z tuple) to a block index."""
     
     if isinstance(key, Coord):
-      x = key.x
-      y = key.y
-      z = key.z
+      x = int(key.x)
+      y = int(key.y)
+      z = int(key.z)
     else:
       x, y, z = key
       x = int(x)

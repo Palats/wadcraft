@@ -233,9 +233,12 @@ class Render(Level):
 
     self._ComputeTransform()
     self._InitSchematic()
-    
-    for v in self.verts.itervalues():
-      self.schematic[self.tr(v).x, 0, self.tr(v).z] = 0x14
+   
+    for subsector in self.subsectors:
+      self._RenderSubsector(subsector)
+
+    #for v in self.verts.itervalues():
+    #  self.schematic[self.tr(v).x, 0, self.tr(v).z] = 0x14
     
   
   def tr(self, value):
@@ -243,9 +246,9 @@ class Render(Level):
       # Do not return a Vertex. Vertex are doom specific, so to reduce
       # confusion and mistake, just return a triple (x, y, z).
       return minecraft.Coord(
-              (value.x + self.transx) * self.scalex,
+              int((value.x + self.transx) * self.scalex),
               None,
-              (value.y + self.transz) * self.scalez)
+              int((value.y + self.transz) * self.scalez))
     else:
       return minecraft.Coord(
               None,
@@ -255,10 +258,10 @@ class Render(Level):
 
   def _ComputeTransform(self):
     # Converter to adapt doom coordinate to minecraft coordinates
-    self.scalex = 60.0/(self.bbox2.x - self.bbox1.x)
-    self.scalez = 60.0/(self.bbox2.y - self.bbox1.y)
+    self.scalex = 100.0/(self.bbox2.x - self.bbox1.x)
+    self.scalez = 100.0/(self.bbox2.y - self.bbox1.y)
     # Height scale is not completely true, as we can add extra block for floor/ceiling
-    self.scaley = 60.0/(self.max_height - self.min_height)
+    self.scaley = 100.0/(self.max_height - self.min_height)
    
     # We want something with max dim 60, so we calculate all scale factors, and
     # pick the smallest one.
@@ -282,43 +285,83 @@ class Render(Level):
     sizez = math.ceil(self.tr(self.bbox2).z)+1
 
     self.schematic = minecraft.Schematic(sizex, sizey, sizez)
+
+    print 'Size:', sizex, sizey, sizez
    
-  def _RenderSubsectors(self):
-    # Now, render each subsector
-    segs = level.getglsegs()
-    linedefs = level.getlinedefs()
-    sidedefs = level.getsidedefs()
-    for segcount, segidx in level.getglsubsectors():
-      ssector_verts = []
-      sector_idx = None
-      for seg in segs[segidx:segidx+segcount]:
-        start_v = self.verts[seg[0]]
-        end_v = self.verts[seg[1]]
+  def _RenderSubsector(self, ssector):
+    # Convert to minecraft coordinates
+    dots = [self.tr(v) for v in ssector.verts]
+    #print dots
 
-        if seg[2] != 0xFFFF:
-          linedef = linedefs[seg[2]]
-          if not seg[3]:
-            # Right side def
-            sidedef_idx = linedef[5]
-          else:
-            # Left side def
-            sidedef_idx = linedef[6]
-          sidedef = sidedefs[sidedef_idx]
-          if not sector_idx:
-            sector_idx = sidedef[5]
-          assert sector_idx == sidedef[5]
+    # Find smallest X and shift dots accordingly
+    min_x = dots[0].x
+    min_idx = 0
+    for i, dot in enumerate(dots):
+      if dot.x < min_x:
+        min_idx = i
+        min_x = dot.x
+    dots = dots[min_idx:] + dots[:min_idx]
+    print dots
 
-        if not ssector_verts:
-          ssector_verts.append(start_v)
+    # Dots are in clockwise order. It means that second dot is top (lower Z)
+    # of dot 0.
+    top = [dots.pop(0)]
+    while dots and (dots[0].x >= top[-1].x):
+      top.append(dots.pop(0))
+
+    # First and last points are common
+    bottom = [top[0]] + dots[::-1] + [top[-1]]
+
+    #print 't:', top
+    #print 'b:', bottom
+
+
+    # Render line by line
+    for x in xrange(top[0].x, top[-1].x+1):
+      # We need check if we need to take next top/bottom point.
+      # However, we need to avoid horizontal line. If we were not rounding
+      # coordinates, only top and bottom lines could be horizontal as subsector
+      # are guaranteed to be convex. But because of the rounding, more of them
+      # can be horizontal.
+      # It practice, when we're at an iteration with 2 points at the level, we
+      # take the one maximizing the amount of blocks covered (i.e., highest one
+      # for top, lowest one for bottom).
+      # We cannot do that simplification before, as it would otherwise skew the
+      # lines.
+      while top[0].x < x:
+        top.pop(0)
+      while  len(top) > 1 and top[0].x == top[1].x:
+        if top[0].z < top[1].z:
+          top.pop(0)
         else:
-          assert ssector_verts[-1] == start_v
+          top.pop(1)
 
-        ssector_verts.append(end_v)
+      while bottom[0].x < x:
+        bottom.pop(0)
+      while len(bottom) > 1 and bottom[0].x == bottom[1].x:
+        if bottom[0].z < bottom[1].z:
+          bottom.pop(1)
+        else:
+          bottom.pop(0)
 
-      assert ssector_verts[0] == ssector_verts[-1]
-      assert sector_idx is not None
-      #print ssector_verts, sector_idx
-  
+      if len(bottom) > 1:
+        botton_ratio = float(x - bottom[0].x) / (bottom[1].x - bottom[0].x)
+        z1 = int(bottom[0].z + (bottom[1].z - bottom[0].z) * botton_ratio) 
+      else:
+        z1 = bottom[0].z
+     
+      if len(top) > 1:
+        top_ratio = float(x - top[0].x) / (top[1].x - top[0].x)
+        z2 = int(top[0].z + (top[1].z - top[0].z) * top_ratio)
+      else:
+        z2 = top[0].z
+
+      print x, z1, z2, ' '*(z1-1) + '#' * (z2-z1+1)
+
+      for z in xrange(z1, z2+1):
+        self.schematic[x, self.tr(ssector.sector.floor).y, z] = 0x2C
+        #self.schematic[x, 0, z] = 0x2C
+
 
 def renderlevel(rawlevel):
   renderer = Render(rawlevel)
