@@ -64,7 +64,7 @@ class Schematic(object):
       z = int(z)
     assert x >= 0 and x < self.sizex
     assert y >= 0 and y < self.sizey
-    assert z >= 0 and z < self.sizez
+    assert z >= 0 and z < self.sizez, str(z)
 
     return ((y * self.sizez) + z) * self.sizex + x
 
@@ -85,6 +85,20 @@ class Schematic(object):
       self._blocks[idx] = chr(block)
     if data is not None:
       self._data[idx] = chr(data)
+
+  def mirrorz(self):
+    new_blocks = array.array('c')
+    new_data = array.array('c')
+
+    # Ordered y,z,x - the x coordinate varies the fastest.
+    for y in xrange(self.sizey):
+      for z in xrange(self.sizez-1, -1, -1):
+        idx = ((y * self.sizez) + z) * self.sizex
+        new_blocks.extend(self._blocks[idx:idx+self.sizex])
+        new_data.extend(self._data[idx:idx+self.sizex])
+
+    self._blocks = new_blocks
+    self._data = new_data
 
   def build_nbt(self):
     nbtfile = nbt.NBTFile()

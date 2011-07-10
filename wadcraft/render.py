@@ -237,6 +237,7 @@ class Render(Level):
     for subsector in self.subsectors:
       self._RenderSubsector(subsector)
 
+    self.schematic.mirrorz()
     #for v in self.verts.itervalues():
     #  self.schematic[self.tr(v).x, 0, self.tr(v).z] = 0x14
     
@@ -246,13 +247,13 @@ class Render(Level):
       # Do not return a Vertex. Vertex are doom specific, so to reduce
       # confusion and mistake, just return a triple (x, y, z).
       return minecraft.Coord(
-              int((value.x + self.transx) * self.scalex),
+              int((float(value.x) + self.transx) * self.scalex),
               None,
-              int((value.y + self.transz) * self.scalez))
+              int((float(value.y) + self.transz) * self.scalez))
     else:
       return minecraft.Coord(
               None,
-              (value + self.transy) * self.scaley,
+              (float(value) + self.transy) * self.scaley,
               None)
 
 
@@ -269,13 +270,12 @@ class Render(Level):
     self.scalex = self.scaley = self.scalez = scale
 
     self.transx = -self.bbox1.x
-    # We take a bit of margin vertically
-    self.transy = -self.min_height + 2 / scale
+    self.transy = -self.min_height
     self.transz = -self.bbox1.y
 
     assert self.tr(self.bbox1).x >= 0.0
     assert self.tr(self.bbox1).z >= 0.0
-    assert self.tr(self.min_height).y >= 1.0
+    assert self.tr(self.min_height).y >= 0.0
     
   def _InitSchematic(self):
     # Create the map. The +1 for the size is because we're actually actually
@@ -287,6 +287,14 @@ class Render(Level):
     self.schematic = minecraft.Schematic(sizex, sizey, sizez)
 
     print 'Size:', sizex, sizey, sizez
+
+  def _fill_column(self, x, top_y, z):
+    int_y = math.floor(top_y)
+    for y in xrange(0, int_y+1):
+      self.schematic[x, y, z] = 0x2B
+
+    if (top_y - int_y) >= 0.5:
+      self.schematic[x, int_y+1, z] = 0x2C
    
   def _RenderSubsector(self, ssector):
     # Convert to minecraft coordinates
@@ -312,9 +320,10 @@ class Render(Level):
     # First and last points are common
     bottom = [top[0]] + dots[::-1] + [top[-1]]
 
-    #print 't:', top
-    #print 'b:', bottom
+    print 't:', top
+    print 'b:', bottom
 
+    sector_y = self.tr(ssector.sector.floor).y
 
     # Render line by line
     for x in xrange(top[0].x, top[-1].x+1):
@@ -328,15 +337,15 @@ class Render(Level):
       # for top, lowest one for bottom).
       # We cannot do that simplification before, as it would otherwise skew the
       # lines.
-      while top[0].x < x:
+      if len(top) > 1 and top[1].x <= x:
         top.pop(0)
-      while  len(top) > 1 and top[0].x == top[1].x:
+      while len(top) > 1 and top[0].x == top[1].x:
         if top[0].z < top[1].z:
           top.pop(0)
         else:
           top.pop(1)
 
-      while bottom[0].x < x:
+      if len(bottom) > 1 and bottom[1].x <= x:
         bottom.pop(0)
       while len(bottom) > 1 and bottom[0].x == bottom[1].x:
         if bottom[0].z < bottom[1].z:
@@ -344,23 +353,25 @@ class Render(Level):
         else:
           bottom.pop(0)
 
-      if len(bottom) > 1:
-        botton_ratio = float(x - bottom[0].x) / (bottom[1].x - bottom[0].x)
-        z1 = int(bottom[0].z + (bottom[1].z - bottom[0].z) * botton_ratio) 
-      else:
-        z1 = bottom[0].z
-     
       if len(top) > 1:
         top_ratio = float(x - top[0].x) / (top[1].x - top[0].x)
-        z2 = int(top[0].z + (top[1].z - top[0].z) * top_ratio)
+        z_top = int(top[0].z + (top[1].z - top[0].z) * top_ratio)
       else:
-        z2 = top[0].z
+        top_ratio = None
+        z_top = top[0].z
 
-      print x, z1, z2, ' '*(z1-1) + '#' * (z2-z1+1)
+      if len(bottom) > 1:
+        bottom_ratio = float(x - bottom[0].x) / (bottom[1].x - bottom[0].x)
+        z_bottom = int(bottom[0].z + (bottom[1].z - bottom[0].z) * bottom_ratio) 
+        print '--', x, bottom[0].x, bottom[1].x, bottom[0].z, bottom[1].z, bottom_ratio
+      else:
+        bottom_ratio = None
+        z_bottom = bottom[0].z
+     
+      print x, z_bottom, z_top, ' '*(z_bottom-1) + '#' * (z_top-z_bottom+1)
 
-      for z in xrange(z1, z2+1):
-        self.schematic[x, self.tr(ssector.sector.floor).y, z] = 0x2C
-        #self.schematic[x, 0, z] = 0x2C
+      for z in xrange(z_bottom, z_top+1):
+        self._fill_column(x, sector_y, z)
 
 
 def renderlevel(rawlevel):
