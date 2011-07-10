@@ -30,7 +30,7 @@ from wadcraft import minecraft
 
 
 class Vertex(object):
-  """Store a Doom 2D vertex."""
+  """Store a Doom/glbsp 2D vertex."""
   def __init__(self, x, y):
     self.x = x
     self.y = y
@@ -42,10 +42,106 @@ class Vertex(object):
     return str(self)
 
 
+class Sidedef(object):
+  """A Doom sidedef description"""
+
+  def __init__(self, level, raw):
+    self.level = level
+    self.raw = raw
+    self.texture_x = self.raw[0]
+    self.texture_y = self.raw[1]
+    # upper texture
+    # lower texture
+    # middle texture
+    self.sector = self.level.sectors[self.raw[5]]
+
+
+class Linedef(object):
+  """A Doom linedef description"""
+
+  def __init__(self, level, raw):
+    self.level = level
+    self.raw = raw
+
+    self.vertex_start = self.level.verts[raw[0]]
+    self.vertex_end = self.level.verts[raw[1]]
+    # flags
+    # special type
+    # sector tag
+    self.right = None
+    if raw[5] != -1:
+      self.right = self.level.sidedefs[raw[5]]
+
+    self.left = None
+    if raw[6] != -1:
+      self.left = self.level.sidedefs[raw[6]]
+
+
+class Segment(object):
+  """A glbsp segment"""
+
+  def __init__(self, level, raw):
+    self.level = level
+    self.raw = raw
+
+    self.vertex_start = self.level.verts[raw[0]]
+    self.vertex_end = self.level.verts[raw[1]]
+
+    self.side = raw[3]
+    if raw[2] == 0xffff:
+      self.linedef = None
+      self.sidedef = None
+      self.sector = None
+    else:
+      self.linedef = self.level.linedefs[raw[2]]
+  
+      if self.side == 0:
+        self.sidedef = self.linedef.right
+      else:
+        self.sidedef = self.linedef.left
+
+      self.sector = self.sidedef.sector
+
+  def link(self):
+    if self.raw[4] == 0xffffffff:
+      self.partner = None
+    else:
+      self.partner = self.level.segments[self.raw[4]]
+
+
+class Subsector(object):
+  """A glbsp subsector description"""
+
+  def __init__(self, level, raw):
+    self.level = level
+    self.raw = raw
+
+    count, firstidx = raw
+    self.segments = self.level.segments[firstidx:firstidx+count]
+
+    self.sector = None
+    self.verts = []
+    for seg in self.segments:
+      if not self.verts:
+        self.verts.append(seg.vertex_start)
+
+      assert seg.vertex_start == self.verts[-1]
+      self.verts.append(seg.vertex_end)
+      
+      if seg.sector:
+        if not self.sector:
+          self.sector = seg.sector
+        assert self.sector == seg.sector
+
+    assert self.verts[0] == self.verts[-1]
+    self.verts.pop()
+
+
 class Sector(object):
   """A Doom sector description"""
 
-  def __init__(self, raw):
+  def __init__(self, level, raw):
+    self.level = level
     self.raw = raw
     self.floor = raw[0]
     self.ceiling = raw[1]
@@ -63,8 +159,14 @@ class Level(object):
   def __init__(self, rawlevel):
     self.rawlevel = rawlevel
 
+    # Many objects have dependencies, so we need to parse that in the correct
+    # order.
     self._GetVertices()
     self._GetSectors()
+    self._GetSidedefs()
+    self._GetLinedefs()
+    self._GetSegments()
+    self._GetSubsectors()
     self._BoundingBox()
 
   def _GetVertices(self):
@@ -77,11 +179,34 @@ class Level(object):
     for i, v in enumerate(self.rawlevel.getglvertices()):
       v_idx = i | (1<<31)
       self.verts[v_idx] = Vertex(v[1], v[3])
-
+  
   def _GetSectors(self):
     self.sectors = []
     for sector in self.rawlevel.getsectors():
-      self.sectors.append(Sector(sector))
+      self.sectors.append(Sector(self, sector))
+
+  def _GetSidedefs(self):
+    self.sidedefs = []
+    for sidedef in self.rawlevel.getsidedefs():
+      self.sidedefs.append(Sidedef(self, sidedef))
+
+  def _GetLinedefs(self):
+    self.linedefs = []
+    for linedef in self.rawlevel.getlinedefs():
+      self.linedefs.append(Linedef(self, linedef))
+
+  def _GetSegments(self):
+    self.segments = []
+    for seg in self.rawlevel.getglsegs():
+      self.segments.append(Segment(self, seg))
+
+    for seg in self.segments:
+      seg.link()
+
+  def _GetSubsectors(self):
+    self.subsectors = []
+    for s in self.rawlevel.getglsubsectors():
+      self.subsectors.append(Subsector(self, s))
 
   def _BoundingBox(self):
     # Build a bounding box so we have an idea where we're going
