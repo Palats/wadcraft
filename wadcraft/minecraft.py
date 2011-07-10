@@ -23,6 +23,13 @@ import array
 import nbt
 
 
+class Coord(object):
+  def __init__(self, x, y, z):
+    self.x = x
+    self.y = y
+    self.z = z
+
+
 class Schematic(object):
   """Manipulate a minecraft schematic"""
   
@@ -39,11 +46,16 @@ class Schematic(object):
 
   def _conv_key(self, key):
     """Convert a key (x,y,z tuple) to a block index."""
-
-    x, y, z = key
-    x = int(x)
-    y = int(y)
-    z = int(z)
+    
+    if isinstance(key, Coord):
+      x = key.x
+      y = key.y
+      z = key.z
+    else:
+      x, y, z = key
+      x = int(x)
+      y = int(y)
+      z = int(z)
     assert x >= 0 and x < self.sizex
     assert y >= 0 and y < self.sizey
     assert z >= 0 and z < self.sizez
