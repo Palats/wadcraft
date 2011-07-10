@@ -20,6 +20,8 @@
 
 import math
 
+import nbt
+
 
 class MinecraftMap(object):
   """Store a rendered Doom level."""
@@ -66,6 +68,35 @@ class MinecraftMap(object):
         s += c
       s += '\n'
     return s
+
+  def generate_nbt(self):
+    nbtfile = nbt.NBTFile()
+    nbtfile.name = "Schematic"
+
+    nbtfile.tags.append(nbt.TAG_String(name="Materials", value="Alpha"))
+    
+    nbtfile.tags.append(nbt.TAG_List(name="Entities", type=nbt.TAG_Compound))
+    nbtfile.tags.append(nbt.TAG_List(name="TileEntities", type=nbt.TAG_Compound))
+
+    nbtfile.tags.append(nbt.TAG_Short(name="Height", value=1))
+    nbtfile.tags.append(nbt.TAG_Short(name="Width", value=self.sizex))
+    nbtfile.tags.append(nbt.TAG_Short(name="Length", value=self.sizey))
+   
+    blocks = nbt.TAG_Byte_Array()
+    blocks.name = "Blocks"
+
+    blocks.value = "\x00" * (self.sizex * self.sizey)
+    for x, y in self._data.iterkeys():
+      idx = y * self.sizex + x
+      blocks.value = blocks.value[:idx] + "\x01" + blocks.value[idx+1:]
+    nbtfile.tags.append(blocks)
+    
+    data = nbt.TAG_Byte_Array()
+    data.name = "Data"
+    data.value = "\x00" * len(blocks.value)
+    nbtfile.tags.append(data)
+
+    return nbtfile
 
 
 class Transform(object):
@@ -134,6 +165,9 @@ def renderlevel(level):
   assert tr(bbox1).y >= 0.0
   mcmap = MinecraftMap(math.ceil(tr(bbox2).x)+1, math.ceil(tr(bbox2).y)+1)
 
+  for v in verts.itervalues():
+    mcmap[tr(v)] = 1
+
   
   # Now, render each subsector
   segs = level.getglsegs()
@@ -168,6 +202,7 @@ def renderlevel(level):
 
     assert ssector_verts[0] == ssector_verts[-1]
     assert sector_idx is not None
-    print ssector_verts, sector_idx
-  
-  #print mcmap.dump()
+    #print ssector_verts, sector_idx
+ 
+  nbtfile = mcmap.generate_nbt()
+  nbtfile.write_file("level.schematic")
