@@ -25,7 +25,9 @@ Keep in mind the following mapping for coordinates
 
 
 import math
+import sys
 
+from wadcraft import bresenham
 from wadcraft import minecraft
 
 
@@ -107,6 +109,12 @@ class Segment(object):
       self.partner = None
     else:
       self.partner = self.level.segments[self.raw[4]]
+  
+  def __str__(self):
+    return 'S(%s,%s)' % (self.vertex_start, self.vertex_end)
+
+  def __repr__(self):
+    return str(self)
 
 
 class Subsector(object):
@@ -235,7 +243,7 @@ class Render(Level):
     self._InitSchematic()
    
     for subsector in self.subsectors:
-      self._RenderSubsector(subsector)
+      self._render_subsector(subsector)
 
     self.schematic.mirrorz()
     #for v in self.verts.itervalues():
@@ -267,6 +275,9 @@ class Render(Level):
     # We want something with max dim 60, so we calculate all scale factors, and
     # pick the smallest one.
     scale = min(self.scalex, self.scaley, self.scalez)
+    scale = 0.5/24
+    #scale = 1.0/24
+
     self.scalex = self.scaley = self.scalez = scale
 
     self.transx = -self.bbox1.x
@@ -289,88 +300,51 @@ class Render(Level):
     print 'Size:', sizex, sizey, sizez
 
   def _fill_column(self, x, top_y, z):
-    int_y = math.floor(top_y)
+    int_y = int(math.floor(top_y))
     for y in xrange(0, int_y+1):
-      self.schematic[x, y, z] = 0x2B
+      self.schematic[x, y, z] = 0x1 # 0x2B
 
     if (top_y - int_y) >= 0.5:
       self.schematic[x, int_y+1, z] = 0x2C
    
-  def _RenderSubsector(self, ssector):
-    # Convert to minecraft coordinates
-    dots = [self.tr(v) for v in ssector.verts]
-    #print dots
+  def _render_subsector(self, ssector):
+    z_top = {}
+    z_bottom = {}
+    border = {}
 
-    # Find smallest X and shift dots accordingly
-    min_x = dots[0].x
-    min_idx = 0
-    for i, dot in enumerate(dots):
-      if dot.x < min_x:
-        min_idx = i
-        min_x = dot.x
-    dots = dots[min_idx:] + dots[:min_idx]
-    print dots
+    for seg in ssector.segments:
+      # Shamelessly modify segments data to add our own coordinates
+      seg.coord_start = self.tr(seg.vertex_start)
+      seg.coord_end = self.tr(seg.vertex_end)
 
-    # Dots are in clockwise order. It means that second dot is top (lower Z)
-    # of dot 0.
-    top = [dots.pop(0)]
-    while dots and (dots[0].x >= top[-1].x):
-      top.append(dots.pop(0))
+      # Segments are clockwise, so we know if this is a top or bottom segment.
+      top_seg = (seg.vertex_end.x >= seg.vertex_start.x)
 
-    # First and last points are common
-    bottom = [top[0]] + dots[::-1] + [top[-1]]
+      # Get the list of sectors this segments is about
+      seg_sectors = set()
+      if seg.sector:
+        seg_sectors.add(seg.sector)
+      if seg.partner and seg.partner.sector:
+        seg_sectors.add(seg.partner.sector)
 
-    print 't:', top
-    print 'b:', bottom
+      # And then draw the segment
+      gen_line = bresenham.line(seg.coord_start.x, seg.coord_start.z,
+                                seg.coord_end.x, seg.coord_end.z)
+      for x, z in gen_line:
+        border.setdefault((x, z), set()).update(seg_sectors)
+        
+        # Keep track of the segment to fill the surface afterwards
+        if top_seg:
+          z_top[x] = max(z_top.get(x, z), z)
+        else:
+          z_bottom[x] = min(z_bottom.get(x, z), z)
 
+    # We're done with all segment, so we now know the limits of the surface, so
+    # draw it.
     sector_y = self.tr(ssector.sector.floor).y
-
-    # Render line by line
-    for x in xrange(top[0].x, top[-1].x+1):
-      # We need check if we need to take next top/bottom point.
-      # However, we need to avoid horizontal line. If we were not rounding
-      # coordinates, only top and bottom lines could be horizontal as subsector
-      # are guaranteed to be convex. But because of the rounding, more of them
-      # can be horizontal.
-      # It practice, when we're at an iteration with 2 points at the level, we
-      # take the one maximizing the amount of blocks covered (i.e., highest one
-      # for top, lowest one for bottom).
-      # We cannot do that simplification before, as it would otherwise skew the
-      # lines.
-      if len(top) > 1 and top[1].x <= x:
-        top.pop(0)
-      while len(top) > 1 and top[0].x == top[1].x:
-        if top[0].z < top[1].z:
-          top.pop(0)
-        else:
-          top.pop(1)
-
-      if len(bottom) > 1 and bottom[1].x <= x:
-        bottom.pop(0)
-      while len(bottom) > 1 and bottom[0].x == bottom[1].x:
-        if bottom[0].z < bottom[1].z:
-          bottom.pop(1)
-        else:
-          bottom.pop(0)
-
-      if len(top) > 1:
-        top_ratio = float(x - top[0].x) / (top[1].x - top[0].x)
-        z_top = int(top[0].z + (top[1].z - top[0].z) * top_ratio)
-      else:
-        top_ratio = None
-        z_top = top[0].z
-
-      if len(bottom) > 1:
-        bottom_ratio = float(x - bottom[0].x) / (bottom[1].x - bottom[0].x)
-        z_bottom = int(bottom[0].z + (bottom[1].z - bottom[0].z) * bottom_ratio) 
-        print '--', x, bottom[0].x, bottom[1].x, bottom[0].z, bottom[1].z, bottom_ratio
-      else:
-        bottom_ratio = None
-        z_bottom = bottom[0].z
-     
-      print x, z_bottom, z_top, ' '*(z_bottom-1) + '#' * (z_top-z_bottom+1)
-
-      for z in xrange(z_bottom, z_top+1):
+    assert len(z_top) == len(z_bottom)
+    for x in sorted(z_top.iterkeys()):
+      for z in xrange(z_bottom[x], z_top[x]+1):
         self._fill_column(x, sector_y, z)
 
 
