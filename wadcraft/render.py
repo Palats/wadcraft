@@ -246,15 +246,31 @@ class Level(object):
       self.max_height = max(self.max_height, s.ceiling)
 
 
+class Pixel(object):
+  def __init__(self, x, z):
+    self.x = x
+    self.z = z
+    self.sectors = set()
+    self.sidedefs = set()
+
+
+class Raster(dict):
+  def __getitem__(self, key):
+    return self.setdefault(key, Pixel(*key))
+
+
 class Render(Level):
   def __init__(self, rawlevel):
     super(Render, self).__init__(rawlevel)
 
     self._ComputeTransform()
     self._InitSchematic()
-   
+  
+    self.raster = Raster()
     for subsector in self.subsectors:
-      self._render_subsector(subsector)
+      self._rasterize_subsector(subsector)
+
+    self._render_raster()
 
     self.schematic.mirrorz()
     #for v in self.verts.itervalues():
@@ -311,6 +327,9 @@ class Render(Level):
     print 'Size:', sizex, sizey, sizez
 
   def _fill_column(self, x, top_y, z):
+    if top_y is None:
+      top_y = self.schematic.sizey - 1
+    
     int_y = int(math.floor(top_y))
     for y in xrange(0, int_y+1):
       self.schematic[x, y, z] = 0x1 # 0x2B
@@ -318,7 +337,7 @@ class Render(Level):
     if (top_y - int_y) >= 0.5:
       self.schematic[x, int_y+1, z] = 0x2C
    
-  def _render_subsector(self, ssector):
+  def _rasterize_subsector(self, ssector):
     z_top = {}
     z_bottom = {}
     border = {}
@@ -331,18 +350,12 @@ class Render(Level):
       # Segments are clockwise, so we know if this is a top or bottom segment.
       top_seg = (seg.vertex_end.x >= seg.vertex_start.x)
 
-      # Get the list of sectors this segments is about
-      seg_sectors = set()
-      if seg.sector:
-        seg_sectors.add(seg.sector)
-      if seg.partner and seg.partner.sector:
-        seg_sectors.add(seg.partner.sector)
-
       # And then draw the segment
       gen_line = bresenham.line(seg.coord_start.x, seg.coord_start.z,
                                 seg.coord_end.x, seg.coord_end.z)
       for x, z in gen_line:
-        border.setdefault((x, z), set()).update(seg_sectors)
+        if seg.sidedef:
+          self.raster[x, z].sidedefs.add(seg.sidedef)
         
         # Keep track of the segment to fill the surface afterwards
         if top_seg:
@@ -352,11 +365,22 @@ class Render(Level):
 
     # We're done with all segment, so we now know the limits of the surface, so
     # draw it.
-    sector_y = self.tr(ssector.sector.floor).y
     assert len(z_top) == len(z_bottom)
     for x in sorted(z_top.iterkeys()):
       for z in xrange(z_bottom[x], z_top[x]+1):
-        self._fill_column(x, sector_y, z)
+        self.raster[x, z].sectors.add(ssector.sector)
+
+  def _render_raster(self):
+    for pixel in self.raster.itervalues():
+      if pixel.sidedefs:
+        solid = [s for s in pixel.sidedefs if s.middle_texture]
+        if solid:
+          self._fill_column(pixel.x, None, pixel.z)
+
+      elif pixel.sectors:
+        lowest = min([s.floor for s in pixel.sectors])
+        sector_y = self.tr(lowest).y
+        self._fill_column(pixel.x, sector_y, pixel.z)
 
 
 def renderlevel(rawlevel):
