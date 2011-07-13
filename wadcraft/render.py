@@ -273,9 +273,6 @@ class Render(Level):
     self._render_raster()
 
     self.schematic.mirrorz()
-    #for v in self.verts.itervalues():
-    #  self.schematic[self.tr(v).x, 0, self.tr(v).z] = 0x14
-    
   
   def tr(self, value):
     if isinstance(value, Vertex):
@@ -302,8 +299,8 @@ class Render(Level):
     # We want something with max dim 60, so we calculate all scale factors, and
     # pick the smallest one.
     scale = min(self.scalex, self.scaley, self.scalez)
-    scale = 0.5/24
-    #scale = 1.0/24
+    #scale = 0.5/24
+    scale = 1.0/24
 
     self.scalex = self.scaley = self.scalez = scale
 
@@ -326,7 +323,7 @@ class Render(Level):
 
     print 'Size:', sizex, sizey, sizez
 
-  def _fill_column(self, x, top_y, z):
+  def _fill_floor(self, x, top_y, z):
     if top_y is None:
       top_y = self.schematic.sizey - 1
     
@@ -336,7 +333,12 @@ class Render(Level):
 
     if (top_y - int_y) >= 0.5:
       self.schematic[x, int_y+1, z] = 0x2C
-   
+  
+  def _fill_ceiling(self, x, bottom_y, z):
+    int_y = int(math.ceil(bottom_y))
+    for y in xrange(int_y, self.schematic.sizey-1):
+      self.schematic[x, y, z] = 0x14 
+
   def _rasterize_subsector(self, ssector):
     z_top = {}
     z_bottom = {}
@@ -372,15 +374,20 @@ class Render(Level):
 
   def _render_raster(self):
     for pixel in self.raster.itervalues():
+      wall = False
       if pixel.sidedefs:
         solid = [s for s in pixel.sidedefs if s.middle_texture]
         if solid:
-          self._fill_column(pixel.x, None, pixel.z)
+          wall = True
+          self._fill_floor(pixel.x, None, pixel.z)
 
-      elif pixel.sectors:
+      if not wall and pixel.sectors:
         lowest = min([s.floor for s in pixel.sectors])
         sector_y = self.tr(lowest).y
-        self._fill_column(pixel.x, sector_y, pixel.z)
+        self._fill_floor(pixel.x, self.tr(lowest).y, pixel.z)
+
+        highest = max([s.ceiling for s in pixel.sectors])
+        self._fill_ceiling(pixel.x, self.tr(highest).y, pixel.z)
 
 
 def render_level(rawlevel):

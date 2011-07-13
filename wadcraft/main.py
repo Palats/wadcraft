@@ -56,7 +56,7 @@ def main():
     wadutils.mergewad(wad, newwad)
 
   for level in wad.levels:
-    if level.header.name not in ['MAP01']:
+    if level.header.name not in ['E1M1']:
       continue
 
     print 'Level', level.header.name
