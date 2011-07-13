@@ -180,15 +180,15 @@ class Level(object):
 
     # Many objects have dependencies, so we need to parse that in the correct
     # order.
-    self._GetVertices()
-    self._GetSectors()
-    self._GetSidedefs()
-    self._GetLinedefs()
-    self._GetSegments()
-    self._GetSubsectors()
-    self._BoundingBox()
+    self._get_vertices()
+    self._get_sectors()
+    self._get_sidedefs()
+    self._get_linedefs()
+    self._get_segments()
+    self._get_subsectors()
+    self._boundingbox()
 
-  def _GetVertices(self):
+  def _get_vertices(self):
     # Create a unique dict of all vertices. We use a dict, so we can have direct
     # access for both regular and gl vertices.
     self.verts = {}
@@ -199,22 +199,22 @@ class Level(object):
       v_idx = i | (1<<31)
       self.verts[v_idx] = Vertex(v[1], v[3])
   
-  def _GetSectors(self):
+  def _get_sectors(self):
     self.sectors = []
     for sector in self.rawlevel.getsectors():
       self.sectors.append(Sector(self, sector))
 
-  def _GetSidedefs(self):
+  def _get_sidedefs(self):
     self.sidedefs = []
     for sidedef in self.rawlevel.getsidedefs():
       self.sidedefs.append(Sidedef(self, sidedef))
 
-  def _GetLinedefs(self):
+  def _get_linedefs(self):
     self.linedefs = []
     for linedef in self.rawlevel.getlinedefs():
       self.linedefs.append(Linedef(self, linedef))
 
-  def _GetSegments(self):
+  def _get_segments(self):
     self.segments = []
     for seg in self.rawlevel.getglsegs():
       self.segments.append(Segment(self, seg))
@@ -222,12 +222,12 @@ class Level(object):
     for seg in self.segments:
       seg.link()
 
-  def _GetSubsectors(self):
+  def _get_subsectors(self):
     self.subsectors = []
     for s in self.rawlevel.getglsubsectors():
       self.subsectors.append(Subsector(self, s))
 
-  def _BoundingBox(self):
+  def _boundingbox(self):
     # Build a bounding box so we have an idea where we're going
     self.bbox1 = Vertex(self.verts[0].x, self.verts[0].y)
     self.bbox2 = Vertex(self.verts[0].x, self.verts[0].y)
@@ -263,8 +263,8 @@ class Render(Level):
   def __init__(self, rawlevel):
     super(Render, self).__init__(rawlevel)
 
-    self._ComputeTransform()
-    self._InitSchematic()
+    self._compute_transform()
+    self._init_schematic()
   
     self.raster = Raster()
     for subsector in self.subsectors:
@@ -292,7 +292,7 @@ class Render(Level):
               None)
 
 
-  def _ComputeTransform(self):
+  def _compute_transform(self):
     # Converter to adapt doom coordinate to minecraft coordinates
     self.scalex = 100.0/(self.bbox2.x - self.bbox1.x)
     self.scalez = 100.0/(self.bbox2.y - self.bbox1.y)
@@ -315,7 +315,7 @@ class Render(Level):
     assert self.tr(self.bbox1).z >= 0.0
     assert self.tr(self.min_height).y >= 0.0
     
-  def _InitSchematic(self):
+  def _init_schematic(self):
     # Create the map. The +1 for the size is because we're actually actually
     # calculating the coordinates of the most extreme point.
     sizex = math.ceil(self.tr(self.bbox2).x)+1
@@ -383,7 +383,7 @@ class Render(Level):
         self._fill_column(pixel.x, sector_y, pixel.z)
 
 
-def renderlevel(rawlevel):
+def render_level(rawlevel):
   renderer = Render(rawlevel)
   nbtfile = renderer.schematic.build_nbt()
   nbtfile.write_file("level.schematic")

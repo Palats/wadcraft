@@ -60,4 +60,4 @@ def main():
       continue
 
     print 'Level', level.header.name
-    render.renderlevel(level)
+    render.render_level(level)
