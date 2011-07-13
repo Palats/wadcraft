@@ -47,14 +47,21 @@ class Vertex(object):
 class Sidedef(object):
   """A Doom sidedef description"""
 
+  def _resolve_texture(self, raw):
+    if raw == '-\x00\x00\x00\x00\x00\x00\x00':
+      return None
+    # We should cross reference texture object when they are converted really.
+    return raw
+
   def __init__(self, level, raw):
     self.level = level
     self.raw = raw
     self.texture_x = self.raw[0]
     self.texture_y = self.raw[1]
-    # upper texture
-    # lower texture
-    # middle texture
+
+    self.upper_texture = self._resolve_texture(self.raw[2])
+    self.lower_texture = self._resolve_texture(self.raw[3])
+    self.middle_texture = self._resolve_texture(self.raw[4])
     self.sector = self.level.sectors[self.raw[5]]
 
 
@@ -153,7 +160,11 @@ class Sector(object):
     self.raw = raw
     self.floor = raw[0]
     self.ceiling = raw[1]
-    # floor texture, ceiling texture, light level, type, tag
+    # floor texture
+    # ceiling texture
+    # light level
+    # type
+    # tag
 
 
 class Level(object):
