@@ -25,6 +25,7 @@ Keep in mind the following mapping for coordinates
 
 
 import math
+import random
 import sys
 
 from wadcraft import bresenham
@@ -370,20 +371,28 @@ class Render(Level):
 
       if not wall and pixel.sectors:
         # Render floor
+        lightlevel = max([s.light for s in pixel.sectors])
+        has_light = random.random() < ((lightlevel / 255.0) / 10.0)
+
         lowest = min([s.floor for s in pixel.sectors])
         sector_y = self.tr(lowest).y
         int_y = int(math.floor(sector_y))
         for y in xrange(0, int_y+1):
           self.schematic[pixel.x, y, pixel.z] = 0x2B
 
-        if (sector_y - int_y) >= 0.5:
-          self.schematic[pixel.x, int_y+1, pixel.z] = 0x2C
+        #if (sector_y - int_y) >= 0.5:
+        #  int_y += 1
+        #  self.schematic[pixel.x, int_y, pixel.z] = 0x2C
+
+        if has_light:
+          int_y += 1
+          self.schematic[pixel.x, int_y, pixel.z] = 0x32
 
         # Render ceiling
         highest = max([s.ceiling for s in pixel.sectors])
         int_y = int(math.ceil(self.tr(highest).y))
         for y in xrange(int_y, self.schematic.sizey):
-          self.schematic[pixel.x, y, pixel.z] = 0x14 
+          self.schematic[pixel.x, y, pixel.z] = 0x1  #0x14 
 
 
 def render_level(rawlevel):

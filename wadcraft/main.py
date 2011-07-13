@@ -19,6 +19,7 @@
 """A Doom level to Minecraft converter."""
 
 
+import random
 import sys
 
 from wadcraft import wadformat
@@ -41,7 +42,10 @@ def main():
     print 'No parameters defined. Usage'
     print sys.argv[0], '<IWAD file> <optional wads>'
     sys.exit(1)
- 
+
+  # Set a fixed seed to always have the same results
+  random.seed(42)
+
   wad = wadformat.wad()
   firstwad = True
   for fname in sys.argv[1:]:
