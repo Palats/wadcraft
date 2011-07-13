@@ -162,6 +162,7 @@ class Sector(object):
     self.ceiling = raw[1]
     # floor texture
     # ceiling texture
+    self.light = raw[4]
     # light level
     # type
     # tag
@@ -323,22 +324,6 @@ class Render(Level):
 
     print 'Size:', sizex, sizey, sizez
 
-  def _fill_floor(self, x, top_y, z):
-    if top_y is None:
-      top_y = self.schematic.sizey - 1
-    
-    int_y = int(math.floor(top_y))
-    for y in xrange(0, int_y+1):
-      self.schematic[x, y, z] = 0x1 # 0x2B
-
-    if (top_y - int_y) >= 0.5:
-      self.schematic[x, int_y+1, z] = 0x2C
-  
-  def _fill_ceiling(self, x, bottom_y, z):
-    int_y = int(math.ceil(bottom_y))
-    for y in xrange(int_y, self.schematic.sizey-1):
-      self.schematic[x, y, z] = 0x14 
-
   def _rasterize_subsector(self, ssector):
     z_top = {}
     z_bottom = {}
@@ -379,15 +364,26 @@ class Render(Level):
         solid = [s for s in pixel.sidedefs if s.middle_texture]
         if solid:
           wall = True
-          self._fill_floor(pixel.x, None, pixel.z)
+          # Render wall
+          for y in xrange(0, self.schematic.sizey):
+            self.schematic[pixel.x, y, pixel.z] = 0x1
 
       if not wall and pixel.sectors:
+        # Render floor
         lowest = min([s.floor for s in pixel.sectors])
         sector_y = self.tr(lowest).y
-        self._fill_floor(pixel.x, self.tr(lowest).y, pixel.z)
+        int_y = int(math.floor(sector_y))
+        for y in xrange(0, int_y+1):
+          self.schematic[pixel.x, y, pixel.z] = 0x2B
 
+        if (sector_y - int_y) >= 0.5:
+          self.schematic[pixel.x, int_y+1, pixel.z] = 0x2C
+
+        # Render ceiling
         highest = max([s.ceiling for s in pixel.sectors])
-        self._fill_ceiling(pixel.x, self.tr(highest).y, pixel.z)
+        int_y = int(math.ceil(self.tr(highest).y))
+        for y in xrange(int_y, self.schematic.sizey):
+          self.schematic[pixel.x, y, pixel.z] = 0x14 
 
 
 def render_level(rawlevel):
