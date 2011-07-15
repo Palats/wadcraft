@@ -46,6 +46,8 @@ class Schematic(object):
     self.sizey = int(sizey)
     self.sizez = int(sizez)
 
+    self.center = None
+
     # Ordered y,z,x - the x coordinate varies the fastest.
     self._blocks = array.array('c', '\x00' * self.sizex * self.sizey * self.sizez)
     self._data = array.array('c', '\x00' * self.sizex * self.sizey * self.sizez)
@@ -100,6 +102,9 @@ class Schematic(object):
     self._blocks = new_blocks
     self._data = new_data
 
+    if self.center:
+      self.center = Coord(self.center.x, self.center.y, self.sizez - self.center.z)
+    
   def build_nbt(self):
     nbtfile = nbt.NBTFile()
     nbtfile.name = "Schematic"
@@ -112,6 +117,14 @@ class Schematic(object):
     nbtfile.tags.append(nbt.TAG_Short(name="Height", value=self.sizey))
     nbtfile.tags.append(nbt.TAG_Short(name="Width", value=self.sizex))
     nbtfile.tags.append(nbt.TAG_Short(name="Length", value=self.sizez))
+    
+    if self.center:
+      #nbtfile.tags.append(nbt.TAG_Int(name="WEOriginX", value=0))
+      #nbtfile.tags.append(nbt.TAG_Int(name="WEOriginY", value=0))
+      #nbtfile.tags.append(nbt.TAG_Int(name="WEOriginZ", value=0))
+      nbtfile.tags.append(nbt.TAG_Int(name="WEOffsetX", value=-self.center.x))
+      nbtfile.tags.append(nbt.TAG_Int(name="WEOffsetY", value=-self.center.y))
+      nbtfile.tags.append(nbt.TAG_Int(name="WEOffsetZ", value=-self.center.z))
    
     blocks = nbt.TAG_Byte_Array()
     blocks.name = "Blocks"

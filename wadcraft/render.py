@@ -30,6 +30,7 @@ import sys
 
 from wadcraft import bresenham
 from wadcraft import minecraft
+from wadcraft import thingdics
 
 
 class Vertex(object):
@@ -169,6 +170,22 @@ class Sector(object):
     # tag
 
 
+class Thing(object):
+  """A Doom Thing description"""
+
+  def __init__(self, level, raw):
+    self.level = level
+    self.raw = raw
+
+    self.x = raw[0]
+    self.y = raw[1]
+    self.angle = raw[2]
+    self.thingtype = raw[3]
+    self.flags = raw[4]
+
+    self.sprite = thingdics.doomdic[self.thingtype]
+
+
 class Level(object):
   """Help manipulating a Doom level.
   
@@ -188,6 +205,7 @@ class Level(object):
     self._get_linedefs()
     self._get_segments()
     self._get_subsectors()
+    self._get_things()
     self._boundingbox()
 
   def _get_vertices(self):
@@ -229,6 +247,11 @@ class Level(object):
     for s in self.rawlevel.getglsubsectors():
       self.subsectors.append(Subsector(self, s))
 
+  def _get_things(self):
+    self.things = []
+    for t in self.rawlevel.getthings():
+      self.things.append(Thing(self, t))
+
   def _boundingbox(self):
     # Build a bounding box so we have an idea where we're going
     self.bbox1 = Vertex(self.verts[0].x, self.verts[0].y)
@@ -254,6 +277,7 @@ class Pixel(object):
     self.z = z
     self.sectors = set()
     self.sidedefs = set()
+    self.floor = None
 
 
 class Raster(dict):
@@ -273,6 +297,8 @@ class Render(Level):
       self._rasterize_subsector(subsector)
 
     self._render_raster()
+
+    self._set_center()
 
     self.schematic.mirrorz()
   
@@ -384,6 +410,8 @@ class Render(Level):
         #  int_y += 1
         #  self.schematic[pixel.x, int_y, pixel.z] = 0x2C
 
+        pixel.floor = int_y
+
         if has_light:
           int_y += 1
           self.schematic[pixel.x, int_y, pixel.z] = 0x32
@@ -392,7 +420,17 @@ class Render(Level):
         highest = max([s.ceiling for s in pixel.sectors])
         int_y = int(math.ceil(self.tr(highest).y))
         for y in xrange(int_y, self.schematic.sizey):
-          self.schematic[pixel.x, y, pixel.z] = 0x1  #0x14 
+          self.schematic[pixel.x, y, pixel.z] = 0x1  #0x14
+
+  def _set_center(self):
+    player = None
+    for t in self.things:
+      if t.thingtype == 0x1:
+        player = t
+
+    coords = self.tr(Vertex(player.x, player.y))
+    pixel = self.raster[coords.x, coords.z]
+    self.schematic.center = minecraft.Coord(coords.x, pixel.floor+1, coords.z)
 
 
 def render_level(rawlevel):
