@@ -1,3 +1,5 @@
+# This file comes from wad2pdf / thingdics.pdf
+
 # Dictionaries for mapping thing numbers to sprite names
 
 # Wad2PDF is a program that converts Doom levels into PDF files.

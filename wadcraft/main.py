@@ -22,7 +22,7 @@
 import random
 import sys
 
-from wadcraft import wadformat
+from wadcraft import waddecode
 from wadcraft import wadutils
 from wadcraft import render
 
@@ -46,11 +46,11 @@ def main():
   # Set a fixed seed to always have the same results
   random.seed(42)
 
-  wad = wadformat.wad()
+  wad = waddecode.wad()
   firstwad = True
   for fname in sys.argv[1:]:
     print 'Loading', fname
-    newwad = wadformat.wad()
+    newwad = waddecode.wad()
     newwad.load(fname)
     if firstwad:
       firstwad = False

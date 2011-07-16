@@ -1,5 +1,7 @@
 # -*- coding: latin1 -*-
 
+# This file comes from wad2pdf / wad.pdf
+
 # Wad2PDF is a program that converts Doom levels into PDF files.
 # (C) 2005-8 Jussi Pakkanen
 #
@@ -49,7 +51,7 @@ glssectorstruct = '<II'
 glnodestruct = nodestruct # The only identical element.
 glmagicid = 'gNd5'
 
-from thingdics import extragraphics
+from waddata import extragraphics
 
 class lump:
     def __init__(self):

@@ -18,7 +18,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 
-from wadcraft import wadformat
+from wadcraft import waddecode
 
 
 def mergearray(target, source, levels=False):
@@ -53,7 +53,7 @@ def mergewad(target, source):
   # Only display levels from the lastest wad file.
   if source.levels is not None:
     mergearray(target.levels, source.levels, True)
-    target.levels.sort(wadformat.levelsorter)
+    target.levels.sort(waddecode.levelsorter)
 
   if source.playpal is not None:
     target.playpal = source.playpal
