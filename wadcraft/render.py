@@ -206,6 +206,22 @@ class Render(wadlib.Level):
       for y in xrange(pixel.ceiling+1, int(ceil_high)+1):
         self.schematic[pixel.x, y, pixel.z] = (0x23, 0x4)
 
+      # Render room level if needed
+      # We want to fill with glass if impassable and textured
+      glass = False
+      for linedef in pixel.linedefs:
+        if not linedef.flag_block_player:
+          continue
+        # We know that all linedefs have 2 sidedefs here, otherwise it would
+        # have been drawn as a wall.
+        if linedef.left.middle_texture or linedef.right.middle_texture:
+          glass = True
+          break
+
+      if glass:
+        for y in xrange(pixel.floor+1, pixel.ceiling):
+          self.schematic[pixel.x, y, pixel.z] = (0x14, 0)
+
   def _set_center(self):
     player = None
     for t in self.things:
