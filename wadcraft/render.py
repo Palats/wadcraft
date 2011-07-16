@@ -198,4 +198,4 @@ class Render(wadlib.Level):
 def render_level(rawlevel):
   renderer = Render(rawlevel)
   nbtfile = renderer.schematic.build_nbt()
-  nbtfile.write_file("level.schematic")
+  return nbtfile

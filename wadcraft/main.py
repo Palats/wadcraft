@@ -19,6 +19,7 @@
 """A Doom level to Minecraft converter."""
 
 
+import optparse
 import random
 import sys
 
@@ -30,38 +31,62 @@ from wadcraft import render
 def main():
   """Convert all specified levels."""
 
-  print 'WadCraft by Pierre Palatin'
+  print 'WadCraft by Pierre Palatin (parts based on Wad2PDF by Jussi Pakkanen)'
   print
-  print 'Parts based on Wad2PDF by Jussi Pakkanen'
-  print 'Wad2PDF/Wadcraft comes with ABSOLUTELY NO WARRANTY.'
-  print 'This is free software, and you are welcome to redistribute it'
-  print 'under the GPL. See included file LICENSE for further info.'
-  print
-  
-  if len(sys.argv) == 1:
-    print 'No parameters defined. Usage'
-    print sys.argv[0], '<IWAD file> <optional wads>'
-    sys.exit(1)
 
   # Set a fixed seed to always have the same results
   random.seed(42)
 
+  parser = optparse.OptionParser()
+
+  parser.add_option('-i', '--iwad', help='Specify iwad file to use.')
+  parser.add_option('-l', '--level', help='Specify level to convert.')
+  parser.add_option('-o', '--output', 
+                    default='level.schematic',
+                    help='Target schematic file.')
+
+  (opts, args) = parser.parse_args()
+
+  if opts.iwad is None:
+    print 'Please specifiy which iwad to use.'
+    print
+    parser.print_help()
+    sys.exit(1)
+
   wad = waddecode.wad()
-  firstwad = True
-  for fname in sys.argv[1:]:
-    print 'Loading', fname
+  print 'Loading iwad %s ...' % opts.iwad 
+  wad.load(opts.iwad)
+  if wad.type != 'IWAD':
+    print 'This is not an iwad file (such as doom.wad or doom2.wad).'
+    sys.exit(2)
+  
+  for fname in args:
+    print 'Loading pwad %s ...' % fname
     newwad = waddecode.wad()
     newwad.load(fname)
-    if firstwad:
-      firstwad = False
-      if newwad.type != 'IWAD':
-        print 'First argument', fname, 'is not an IWAD file. Exiting.'
-        sys.exit(1)
     wadutils.mergewad(wad, newwad)
 
-  for level in wad.levels:
-    if level.header.name not in ['E1M1']:
-      continue
+  print
 
-    print 'Level', level.header.name
-    render.render_level(level)
+  level = None
+  if opts.level:
+    for level in wad.levels:
+      if level.header.name.lower() == opts.level.lower():
+        break
+    else:
+      print 'Unable to find level %s' % opts.level
+      print
+      level = None
+
+  if not level:
+    print 'Existing levels:'
+    for level in wad.levels:
+      print '    %s' % level.header.name
+    sys.exit(3)
+
+
+  print 'Converting level %s ...' % level.header.name
+  nbtfile = render.render_level(level)
+
+  print 'Writing schematic to %s ...' % opts.output
+  nbtfile.write_file(opts.output)
