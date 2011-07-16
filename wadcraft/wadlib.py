@@ -54,6 +54,10 @@ class Sidedef(object):
     self.middle_texture = self._resolve_texture(self.raw[4])
     self.sector = self.level.sectors[self.raw[5]]
 
+    self.sector.sidedefs.append(self)
+    self.linedef = None
+    self.partner = None
+
 
 class Linedef(object):
   """A Doom linedef description"""
@@ -75,10 +79,16 @@ class Linedef(object):
     self.right = None
     if raw[5] != -1:
       self.right = self.level.sidedefs[raw[5]]
+      self.right.linedef = self
 
     self.left = None
     if raw[6] != -1:
       self.left = self.level.sidedefs[raw[6]]
+      self.left.linedef = self
+
+    if self.left and self.right:
+      self.left.partner = self.right
+      self.right.partner = self.left
 
     # If None, double faced linedef. Otherwise, point to the corresponding
     # sidedef.
@@ -167,6 +177,8 @@ class Sector(object):
     # light level
     # type
     # tag
+
+    self.sidedefs = []
 
 
 class Thing(object):

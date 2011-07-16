@@ -153,13 +153,36 @@ class Render(wadlib.Level):
   def _render_pixel(self, pixel):
     wall = False
 
-    floor_low = math.floor(self.tr(min([s.floor for s in pixel.sectors])).y)
-    floor_high = math.floor(self.tr(max([s.floor for s in pixel.sectors])).y)
-    ceil_low = math.ceil(self.tr(min([s.ceiling for s in pixel.sectors])).y)
-    ceil_high = math.ceil(self.tr(max([s.ceiling for s in pixel.sectors])).y)
+    # Check ceiling and floor limits.
+    floor_high = ceil_high = -sys.maxint
+    floor_low = ceil_low = sys.maxint
 
-    sectors = [l.onesided.sector for l in pixel.linedefs if l.onesided]
-    if sectors:
+    for s in pixel.sectors:
+      floor = s.floor
+      ceiling = s.ceiling
+      if floor == ceiling:
+        # Consider door to be open, so we need to find height of adjecent
+        # sector.
+        for sidedef in s.sidedefs:
+          if not sidedef.partner:
+            continue
+          ceiling = max(ceiling, sidedef.partner.sector.ceiling)
+    
+      floor_high = max(floor_high, floor)
+      floor_low = min(floor_low, floor)
+      ceil_high = max(ceil_high, ceiling)
+      ceil_low = min(ceil_low, ceiling)
+
+    # Convert to minecraft coordinates
+    floor_high = math.floor(self.tr(floor_high).y)
+    floor_low = math.floor(self.tr(floor_low).y)
+    ceil_high = math.ceil(self.tr(ceil_high).y)
+    ceil_low = math.ceil(self.tr(ceil_low).y)
+
+    # If one of the linedef on this pixel is onesided, we need to have a full
+    # wall; otherwise we might have gaps in the rendering.
+    onesided = bool([l.onesided.sector for l in pixel.linedefs if l.onesided])
+    if onesided:
       # Render wall
       for y in xrange(int(floor_low), int(ceil_high)+1):
         self.schematic[pixel.x, y, pixel.z] = (0x23, 0x5)
