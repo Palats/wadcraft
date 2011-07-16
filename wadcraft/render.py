@@ -76,9 +76,14 @@ class Linedef(object):
 
     self.vertex_start = self.level.verts[raw[0]]
     self.vertex_end = self.level.verts[raw[1]]
-    # flags
-    # special type
-    # sector tag
+
+    self.flags = raw[2]
+    self.flag_block_player = bool(self.flags & 1)
+    # Many more flags exists obviously.
+
+    self.special_type = raw[3]
+    self.sector_tag = raw[4]
+    
     self.right = None
     if raw[5] != -1:
       self.right = self.level.sidedefs[raw[5]]
@@ -86,6 +91,12 @@ class Linedef(object):
     self.left = None
     if raw[6] != -1:
       self.left = self.level.sidedefs[raw[6]]
+
+    # If None, double faced linedef. Otherwise, point to the corresponding
+    # sidedef.
+    self.onesided = None
+    if not (self.left and self.right):
+      self.onesided = self.left or self.right
 
 
 class Segment(object):
@@ -276,7 +287,7 @@ class Pixel(object):
     self.x = x
     self.z = z
     self.sectors = set()
-    self.sidedefs = set()
+    self.linedefs = set()
     self.floor = None
 
 
@@ -369,7 +380,7 @@ class Render(Level):
                                 seg.coord_end.x, seg.coord_end.z)
       for x, z in gen_line:
         if seg.sidedef:
-          self.raster[x, z].sidedefs.add(seg.sidedef)
+          self.raster[x, z].linedefs.add(seg.linedef)
         
         # Keep track of the segment to fill the surface afterwards
         if top_seg:
@@ -386,45 +397,45 @@ class Render(Level):
 
   def _render_raster(self):
     for pixel in self.raster.itervalues():
-      wall = False
-      if pixel.sidedefs:
-        solid = [s for s in pixel.sidedefs if s.middle_texture]
-        if solid:
-          wall = True
-          # Render wall
-          for y in xrange(0, self.schematic.sizey):
-            self.schematic[pixel.x, y, pixel.z] = 0x1
+      self._render_pixel(pixel)
 
-      if not wall and pixel.sectors:
-        # Render floor
-        lightlevel = max([s.light for s in pixel.sectors])
-        has_light = random.random() < ((lightlevel / 255.0) / 10.0)
+  def _render_pixel(self, pixel):
+    wall = False
 
-        lowest = min([s.floor for s in pixel.sectors])
-        sector_y = self.tr(lowest).y
-        int_y = int(math.floor(sector_y))
-        for y in xrange(0, int_y+1):
-          self.schematic[pixel.x, y, pixel.z] = 0x2B
+    floor_low = math.floor(self.tr(min([s.floor for s in pixel.sectors])).y)
+    floor_high = math.floor(self.tr(max([s.floor for s in pixel.sectors])).y)
+    ceil_low = math.ceil(self.tr(min([s.ceiling for s in pixel.sectors])).y)
+    ceil_high = math.ceil(self.tr(max([s.ceiling for s in pixel.sectors])).y)
 
-        #if (sector_y - int_y) >= 0.5:
-        #  int_y += 1
-        #  self.schematic[pixel.x, int_y, pixel.z] = 0x2C
+    sectors = [l.onesided.sector for l in pixel.linedefs if l.onesided]
+    if sectors:
+      # Render wall
+      for y in xrange(int(floor_low), int(ceil_high)+1):
+        self.schematic[pixel.x, y, pixel.z] = (0x23, 0x5)
+    else:
+      lightlevel = max([s.light for s in pixel.sectors])
+      has_light = random.random() < ((lightlevel / 255.0) / 10.0)
 
-        pixel.floor = int_y
+      pixel.floor = int(floor_high)
+      pixel.ceiling = int(ceil_low)
 
-        if has_light:
-          int_y += 1
-          self.schematic[pixel.x, int_y, pixel.z] = 0x32
+      if has_light:
+        self.schematic[pixel.x, pixel.floor+1, pixel.z] = 0x32
 
-        # Render ceiling
-        highest = max([s.ceiling for s in pixel.sectors])
-        int_y = int(math.ceil(self.tr(highest).y))
-        for y in xrange(int_y, self.schematic.sizey):
-          self.schematic[pixel.x, y, pixel.z] = 0x1  #0x14
+      # Render floor
+      self.schematic[pixel.x, pixel.floor, pixel.z] = (0x23, 0x0)
+      for y in xrange(int(floor_low), pixel.floor):
+        self.schematic[pixel.x, y, pixel.z] = (0x23, 0x9)
+
+      # Render ceiling
+      self.schematic[pixel.x, pixel.ceiling, pixel.z] = (0x23, 0x8)
+      for y in xrange(pixel.ceiling+1, int(ceil_high)+1):
+        self.schematic[pixel.x, y, pixel.z] = (0x23, 0x4)
 
   def _set_center(self):
     player = None
     for t in self.things:
+      # 0x1 is player1 start, mandatory in levels
       if t.thingtype == 0x1:
         player = t
 
