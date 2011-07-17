@@ -8,6 +8,8 @@ setup(
   },
   packages=find_packages(exclude=['ez_setup']),
   install_requires=[
-    'NBT'
+    'NBT',
+    'numpy',   # colormath depends on numpy but does not have it in its dependencies
+    'colormath',
   ],
 )

@@ -29,6 +29,8 @@ import math
 import random
 import sys
 
+from colormath import color_objects
+
 from wadcraft import bresenham
 from wadcraft import minecraft
 from wadcraft import wadlib
@@ -165,17 +167,12 @@ class Render(wadlib.Level):
       g = g / (width * height)
       b = b / (width * height)
 
-      h, s, v = colorsys.rgb_to_hsv(r, g, b)
+      color = color_objects.RGBColor(r, g, b)
 
       min_idx = 0
       min_dist = sys.maxint
-      for idx, color in minecraft.wool_colors.iteritems():
-        w_r = (color >> 16) & 255
-        w_g = (color >> 8) & 255
-        w_b = color & 255
-        w_h, w_s, w_v = colorsys.rgb_to_hsv(w_r, w_g, w_b)
-        #dist = abs(r - w_r)**2 +  abs(g - w_g)**2 + abs(b - w_b)**2
-        dist = abs(h - w_h)**2 + abs(s - w_s) + abs(v - w_v)
+      for idx, w_color in minecraft.wool_colors.iteritems():
+        dist = color.delta_e(w_color)
         if dist < min_dist:
           min_idx = idx
           min_dist = dist
