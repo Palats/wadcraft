@@ -120,6 +120,11 @@ class Render(wadlib.Level):
     print 'Size:', sizex, sizey, sizez
 
   def _rasterize_subsector(self, ssector):
+    """Transform the given subsector into a serie of pixels.
+
+    A pixel contains all sectors and linedefs covering this pixel, for later
+    rendering.
+    """
     z_top = {}
     z_bottom = {}
     border = {}
@@ -153,6 +158,7 @@ class Render(wadlib.Level):
         self.raster[x, z].sectors.add(ssector.sector)
 
   def _get_flat_color(self, flat):
+    """From a flat definition, returns which wool color is supposed to be used."""
     if not flat in self._flat_colors:
       width, height, image = waddecode.indexed2rgba(flat.getgraphic(), self.wad.playpal.palettes[0])
       r = g = b = 0
@@ -186,6 +192,11 @@ class Render(wadlib.Level):
       self._render_pixel(pixel)
 
   def _render_pixel(self, pixel):
+    """Render the given pixel to a column of cubes.
+
+    It can either be rendered as a wall (single middle texture), or an open
+    area, with floor, ceiling and potentially lower and higher texture.
+    """
     wall = False
 
     # Check ceiling and floor limits.
