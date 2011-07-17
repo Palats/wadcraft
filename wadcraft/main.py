@@ -25,6 +25,7 @@ import sys
 
 from wadcraft import waddecode
 from wadcraft import wadutils
+from wadcraft import wadlib
 from wadcraft import render
 
 
@@ -53,24 +54,26 @@ def main():
     parser.print_help()
     sys.exit(1)
 
-  wad = waddecode.wad()
+  rawwad = waddecode.wad()
   print 'Loading iwad %s ...' % opts.iwad 
-  wad.load(opts.iwad)
-  if wad.type != 'IWAD':
+  rawwad.load(opts.iwad)
+  if rawwad.type != 'IWAD':
     print 'This is not an iwad file (such as doom.wad or doom2.wad).'
     sys.exit(2)
   
   for fname in args:
     print 'Loading pwad %s ...' % fname
-    newwad = waddecode.wad()
-    newwad.load(fname)
-    wadutils.mergewad(wad, newwad)
+    newrawwad = waddecode.wad()
+    newrawwad.load(fname)
+    wadutils.mergewad(rawwad, newrawwad)
+
+  wad = wadlib.Wad(rawwad)
 
   print
 
   level = None
   if opts.level:
-    for level in wad.levels:
+    for level in rawwad.levels:
       if level.header.name.lower() == opts.level.lower():
         break
     else:
@@ -80,13 +83,13 @@ def main():
 
   if not level:
     print 'Existing levels:'
-    for level in wad.levels:
+    for level in rawwad.levels:
       print '    %s' % level.header.name
     sys.exit(3)
 
 
   print 'Converting level %s ...' % level.header.name
-  nbtfile = render.render_level(level)
+  nbtfile = render.render_level(wad, level)
 
   print 'Writing schematic to %s ...' % opts.output
   nbtfile.write_file(opts.output)

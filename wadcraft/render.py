@@ -24,6 +24,7 @@ Keep in mind the following mapping for coordinates
 """
 
 
+import colorsys
 import math
 import random
 import sys
@@ -31,6 +32,7 @@ import sys
 from wadcraft import bresenham
 from wadcraft import minecraft
 from wadcraft import wadlib
+from wadcraft import waddecode
 
 
 class Pixel(object):
@@ -48,8 +50,10 @@ class Raster(dict):
 
 
 class Render(wadlib.Level):
-  def __init__(self, rawlevel):
-    super(Render, self).__init__(rawlevel)
+  def __init__(self, wad, rawlevel):
+    super(Render, self).__init__(wad, rawlevel)
+
+    self._flat_colors = {}
 
     self._compute_transform()
     self._init_schematic()
@@ -146,6 +150,40 @@ class Render(wadlib.Level):
       for z in xrange(z_bottom[x], z_top[x]+1):
         self.raster[x, z].sectors.add(ssector.sector)
 
+  def _get_flat_color(self, flat):
+    if not flat in self._flat_colors:
+      width, height, image = waddecode.indexed2rgba(flat.getgraphic(), self.wad.playpal.palettes[0])
+      r = g = b = 0
+      for y in xrange(0, height):
+        for x in xrange(0, width):
+          idx = (x + y * width) * 4
+          r += ord(image[idx])
+          g += ord(image[idx+1])
+          b += ord(image[idx+2])
+
+      r = r / (width * height)
+      g = g / (width * height)
+      b = b / (width * height)
+
+      h, s, v = colorsys.rgb_to_hsv(r, g, b)
+
+      min_idx = 0
+      min_dist = sys.maxint
+      for idx, color in minecraft.wool_colors.iteritems():
+        w_r = (color >> 16) & 255
+        w_g = (color >> 8) & 255
+        w_b = color & 255
+        w_h, w_s, w_v = colorsys.rgb_to_hsv(w_r, w_g, w_b)
+        #dist = abs(r - w_r)**2 +  abs(g - w_g)**2 + abs(b - w_b)**2
+        dist = abs(h - w_h)**2 + abs(s - w_s) + abs(v - w_v)
+        if dist < min_dist:
+          min_idx = idx
+          min_dist = dist
+
+      self._flat_colors[flat] = min_idx
+
+    return self._flat_colors[flat]
+
   def _render_raster(self):
     for pixel in self.raster.itervalues():
       self._render_pixel(pixel)
@@ -157,21 +195,29 @@ class Render(wadlib.Level):
     floor_high = ceil_high = -sys.maxint
     floor_low = ceil_low = sys.maxint
 
-    for s in pixel.sectors:
-      floor = s.floor
-      ceiling = s.ceiling
+    pixel.floor_sector = None
+    pixel.ceil_sector = None
+
+    for sector in pixel.sectors:
+      floor = sector.floor
+      ceiling = sector.ceiling
       if floor == ceiling:
         # Consider door to be open, so we need to find height of adjecent
         # sector.
-        for sidedef in s.sidedefs:
+        for sidedef in sector.sidedefs:
           if not sidedef.partner:
             continue
           ceiling = max(ceiling, sidedef.partner.sector.ceiling)
     
-      floor_high = max(floor_high, floor)
+      if floor > floor_high:
+        pixel.floor_sector = sector
+        floor_high = floor
       floor_low = min(floor_low, floor)
+
       ceil_high = max(ceil_high, ceiling)
-      ceil_low = min(ceil_low, ceiling)
+      if ceiling < ceil_low:
+        pixel.ceil_sector = sector
+        ceil_low = ceiling
 
     # Convert to minecraft coordinates
     floor_high = math.floor(self.tr(floor_high).y)
@@ -197,14 +243,21 @@ class Render(wadlib.Level):
         self.schematic[pixel.x, pixel.floor+1, pixel.z] = 0x32
 
       # Render floor
-      self.schematic[pixel.x, pixel.floor, pixel.z] = (0x23, 0x0)
+      floor_flat = pixel.floor_sector.floor_flat
+      color = self._get_flat_color(floor_flat)
+
+      self.schematic[pixel.x, pixel.floor, pixel.z] = (0x23, color)
       for y in xrange(int(floor_low), pixel.floor):
         self.schematic[pixel.x, y, pixel.z] = (0x23, 0x9)
 
       # Render ceiling
-      self.schematic[pixel.x, pixel.ceiling, pixel.z] = (0x23, 0x8)
-      for y in xrange(pixel.ceiling+1, int(ceil_high)+1):
-        self.schematic[pixel.x, y, pixel.z] = (0x23, 0x4)
+      ceil_flat = pixel.ceil_sector.ceil_flat
+      if 'sky' not in ceil_flat.name.lower():
+        # Draw only when it's not a sky texture
+        color = self._get_flat_color(ceil_flat)
+        self.schematic[pixel.x, pixel.ceiling, pixel.z] = (0x23, color)
+        for y in xrange(pixel.ceiling+1, int(ceil_high)+1):
+          self.schematic[pixel.x, y, pixel.z] = (0x23, 0x4)
 
       # Render room level if needed
       # We want to fill with glass if impassable and textured
@@ -234,7 +287,7 @@ class Render(wadlib.Level):
     self.schematic.center = minecraft.Coord(coords.x, pixel.floor+1, coords.z)
 
 
-def render_level(rawlevel):
-  renderer = Render(rawlevel)
+def render_level(wad, rawlevel):
+  renderer = Render(wad, rawlevel)
   nbtfile = renderer.schematic.build_nbt()
   return nbtfile

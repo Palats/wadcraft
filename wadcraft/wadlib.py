@@ -151,7 +151,7 @@ class Subsector(object):
       if not self.verts:
         self.verts.append(seg.vertex_start)
 
-      assert seg.vertex_start == self.verts[-1]
+      #assert seg.vertex_start == self.verts[-1]
       self.verts.append(seg.vertex_end)
       
       if seg.sector:
@@ -159,7 +159,7 @@ class Subsector(object):
           self.sector = seg.sector
         assert self.sector == seg.sector
 
-    assert self.verts[0] == self.verts[-1]
+    #assert self.verts[0] == self.verts[-1]
     self.verts.pop()
 
 
@@ -171,10 +171,10 @@ class Sector(object):
     self.raw = raw
     self.floor = raw[0]
     self.ceiling = raw[1]
-    # floor texture
-    # ceiling texture
+
+    self.floor_flat = self.level.wad.flats[raw[2]]
+    self.ceil_flat = self.level.wad.flats[raw[3]]
     self.light = raw[4]
-    # light level
     # type
     # tag
 
@@ -205,7 +205,8 @@ class Level(object):
     bbox1: Vertex
   """
 
-  def __init__(self, rawlevel):
+  def __init__(self, wad, rawlevel):
+    self.wad = wad
     self.rawlevel = rawlevel
 
     # Many objects have dependencies, so we need to parse that in the correct
@@ -282,3 +283,9 @@ class Level(object):
       self.max_height = max(self.max_height, s.ceiling)
 
 
+class Wad(object):
+  def __init__(self, rawwad):
+    self.rawwad = rawwad
+    
+    self.flats = dict([(f.name, f) for f in self.rawwad.flats])
+    self.playpal = self.rawwad.playpal
