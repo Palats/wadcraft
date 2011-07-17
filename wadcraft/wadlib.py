@@ -18,6 +18,7 @@
 """High level pythonic classes to manipulate WAD data."""
 
 
+from wadcraft import waddecode
 from wadcraft import waddata
 
 
@@ -38,7 +39,8 @@ class Sidedef(object):
   """A Doom sidedef description"""
 
   def _resolve_texture(self, raw):
-    if raw == '-\x00\x00\x00\x00\x00\x00\x00':
+    raw = raw.rstrip('\x00')
+    if raw == '-':
       return None
     # We should cross reference texture object when they are converted really.
     return raw
@@ -289,3 +291,9 @@ class Wad(object):
     
     self.flats = dict([(f.name, f) for f in self.rawwad.flats])
     self.playpal = self.rawwad.playpal
+    self.patchdict = waddecode.buildpatchdict([self.rawwad])
+
+    self.textures = {}
+    texdefs = self.rawwad.texture1.definitions+self.rawwad.texture2.definitions
+    for texdef in texdefs:
+      self.textures[texdef[0]] = texdef

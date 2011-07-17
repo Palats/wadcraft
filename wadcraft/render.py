@@ -56,6 +56,7 @@ class Render(wadlib.Level):
     super(Render, self).__init__(wad, rawlevel)
 
     self._flat_colors = {}
+    self._texture_colors = {}
 
     self._compute_transform()
     self._init_schematic()
@@ -157,35 +158,56 @@ class Render(wadlib.Level):
       for z in xrange(z_bottom[x], z_top[x]+1):
         self.raster[x, z].sectors.add(ssector.sector)
 
-  def _get_flat_color(self, flat):
+  def _get_graphic_color(self, graphic):
     """From a flat definition, returns which wool color is supposed to be used."""
+    width, height, image = waddecode.indexed2rgba(graphic, self.wad.playpal.palettes[0])
+    r = g = b = 0
+    for y in xrange(0, height):
+      for x in xrange(0, width):
+        idx = (x + y * width) * 4
+        r += ord(image[idx])
+        g += ord(image[idx+1])
+        b += ord(image[idx+2])
+
+    r = r / (width * height)
+    g = g / (width * height)
+    b = b / (width * height)
+
+    color = color_objects.RGBColor(r, g, b)
+
+    min_idx = 0
+    min_dist = sys.maxint
+    for idx, w_color in minecraft.wool_colors.iteritems():
+      # Exclude black wool, as it makes things really hard to see
+      if idx == 0xf:
+        continue
+      dist = color.delta_e(w_color)
+      if dist < min_dist:
+        min_idx = idx
+        min_dist = dist
+
+    return min_idx
+
+  def _get_flat_color(self, flat):
     if not flat in self._flat_colors:
-      width, height, image = waddecode.indexed2rgba(flat.getgraphic(), self.wad.playpal.palettes[0])
-      r = g = b = 0
-      for y in xrange(0, height):
-        for x in xrange(0, width):
-          idx = (x + y * width) * 4
-          r += ord(image[idx])
-          g += ord(image[idx+1])
-          b += ord(image[idx+2])
-
-      r = r / (width * height)
-      g = g / (width * height)
-      b = b / (width * height)
-
-      color = color_objects.RGBColor(r, g, b)
-
-      min_idx = 0
-      min_dist = sys.maxint
-      for idx, w_color in minecraft.wool_colors.iteritems():
-        dist = color.delta_e(w_color)
-        if dist < min_dist:
-          min_idx = idx
-          min_dist = dist
-
-      self._flat_colors[flat] = min_idx
-
+      print '   Mapping flat %s ...' % flat.name
+      self._flat_colors[flat] = self._get_graphic_color(flat.getgraphic())
     return self._flat_colors[flat]
+
+  def _get_texture_color(self, texture):
+    if not texture in self._texture_colors:
+      texdef = self.wad.textures.get(texture, None)
+      if not texdef:
+        print '   Unable to find texture', texture
+        color = 0
+      else:  
+        print '   Mapping texture %s ...' % texture
+        g = waddecode.buildtexture(
+          texdef,
+          self.wad.patchdict)
+        color = self._get_graphic_color(g)
+      self._texture_colors[texture] = color
+    return self._texture_colors[texture]
 
   def _render_raster(self):
     for pixel in self.raster.itervalues():
@@ -235,11 +257,24 @@ class Render(wadlib.Level):
 
     # If one of the linedef on this pixel is onesided, we need to have a full
     # wall; otherwise we might have gaps in the rendering.
-    onesided = bool([l.onesided.sector for l in pixel.linedefs if l.onesided])
+    onesided = [l for l in pixel.linedefs if l.onesided]
     if onesided:
-      # Render wall
+      ## Render wall
+      # Pick one of the onesided wall texture; pick the one with the biggest
+      # surface.
+      max_side = onesided[0].onesided
+      max_size = max_side.sector.ceiling - max_side.sector.floor
+      for linedef in onesided:
+        side = linedef.onesided
+        size = side.sector.ceiling - side.sector.floor
+        if size > max_size:
+          max_size = size
+          max_side = side
+
+      color = self._get_texture_color(max_side.middle_texture)
+
       for y in xrange(int(floor_low), int(ceil_high)+1):
-        self.schematic[pixel.x, y, pixel.z] = (0x23, 0x5)
+        self.schematic[pixel.x, y, pixel.z] = (0x23, color)
     else:
       lightlevel = max([s.light for s in pixel.sectors])
       has_light = random.random() < ((lightlevel / 255.0) / 10.0)
@@ -247,27 +282,55 @@ class Render(wadlib.Level):
       pixel.floor = int(floor_high)
       pixel.ceiling = int(ceil_low)
 
-      if has_light:
-        self.schematic[pixel.x, pixel.floor+1, pixel.z] = 0x32
-
-      # Render floor
+      ## Render floor
       floor_flat = pixel.floor_sector.floor_flat
-      color = self._get_flat_color(floor_flat)
+      floor_color = self._get_flat_color(floor_flat)
 
-      self.schematic[pixel.x, pixel.floor, pixel.z] = (0x23, color)
+      sidedef = None
+      for linedef in pixel.linedefs:
+        # They are all double sided at this point  
+        if linedef.left.sector == pixel.floor_sector:
+          sidedef = linedef.left
+        if linedef.right.sector == pixel.floor_sector:
+          sidedef = linedef.right
+        if sidedef and not sidedef.lower_texture:
+          sidedef = None
+
+      if sidedef:
+        lower_color = self._get_texture_color(sidedef.lower_texture)
+      else:
+        lower_color = 0
+
+      self.schematic[pixel.x, pixel.floor, pixel.z] = (0x23, floor_color)
       for y in xrange(int(floor_low), pixel.floor):
-        self.schematic[pixel.x, y, pixel.z] = (0x23, 0x9)
+        self.schematic[pixel.x, y, pixel.z] = (0x23, lower_color)
 
-      # Render ceiling
+      ## Render ceiling
       ceil_flat = pixel.ceil_sector.ceil_flat
-      if 'sky' not in ceil_flat.name.lower():
+      skylight = 'sky' in ceil_flat.name.lower()
+      if not skylight:
         # Draw only when it's not a sky texture
-        color = self._get_flat_color(ceil_flat)
-        self.schematic[pixel.x, pixel.ceiling, pixel.z] = (0x23, color)
-        for y in xrange(pixel.ceiling+1, int(ceil_high)+1):
-          self.schematic[pixel.x, y, pixel.z] = (0x23, 0x4)
+        sidedef = None
+        for linedef in pixel.linedefs:
+          # They are all double sided at this point  
+          if linedef.left.sector == pixel.ceil_sector:
+            sidedef = linedef.left
+          if linedef.right.sector == pixel.ceil_sector:
+            sidedef = linedef.right
+          if sidedef and not sidedef.upper_texture:
+            sidedef = None
 
-      # Render room level if needed
+        if sidedef:
+          upper_color = self._get_texture_color(sidedef.upper_texture)
+        else:
+          upper_color = 0
+
+        ceil_color = self._get_flat_color(ceil_flat)
+        self.schematic[pixel.x, pixel.ceiling, pixel.z] = (0x23, ceil_color)
+        for y in xrange(pixel.ceiling+1, int(ceil_high)+1):
+          self.schematic[pixel.x, y, pixel.z] = (0x23, upper_color)
+
+      ## Render room level if needed
       # We want to fill with glass if impassable and textured
       glass = False
       for linedef in pixel.linedefs:
@@ -282,6 +345,11 @@ class Render(wadlib.Level):
       if glass:
         for y in xrange(pixel.floor+1, pixel.ceiling):
           self.schematic[pixel.x, y, pixel.z] = (0x14, 0)
+      
+      ## Add torches for light level
+      if has_light and not skylight and not glass:
+        self.schematic[pixel.x, pixel.floor+1, pixel.z] = 0x32
+
 
   def _set_center(self):
     player = None
