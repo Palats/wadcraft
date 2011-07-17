@@ -1,10 +1,23 @@
 Wadcraft
 ========
 
-A dumb Doom WAD level to Minecraft map fragment converter.
+A useless-but-fun Doom level to Minecraft automatic converter.                                                                                                                                     
+                                                                                                                                                                                                                                             
+See [E1M1: Hangar](http://www.youtube.com/watch?v=TRsFcjgq6_U) for an example of the result.
+                                                                                                                                                                                                                                             
+Features:                                                                                                                                                                                                                                    
 
+  - Render floor, ceiling, walls and so on                                                                                                                                                                                                   
+  - Generate standard minecraft .schematic                                                                                                                                                                                                   
+  - If pasted with the WorldEdit minecraft plugin, the player will automatically be at player 1 start for a better experience :)                                                                                                             
+  - Sector with visible sky are using minecraft sky                                                                                                                                                                                          
+  - Door are rendered open as much as possible                                                                                                                                                                                               
+  - All textures and flats are rendered using wool blocks with the color closest to the texture as possible. Given minecraft granularity, it's not always visible, but slime will be properly green, water blue and so on.                   
+  - Lighting more or less based on doom sectors light levels, but lighting model are too different between the games.                                                                                                                        
+  - Should be able to render any Doom/Doom2/Ultimate doom levels and probably more with tiny adjustements.                                                                                                                                   
+                                                                                                                                                                                                                                             
 
-Basic usage, it's extremely rough:
+Basic usage:
 
  - First you need to setup it. Given that it needs the [NBT library](https://github.com/twoolie/NBT) and [python colormap](http://code.google.com/p/python-colormath/), something along those lines should do the trick:
 
