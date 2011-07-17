@@ -294,6 +294,12 @@ class Wad(object):
     self.patchdict = waddecode.buildpatchdict([self.rawwad])
 
     self.textures = {}
-    texdefs = self.rawwad.texture1.definitions+self.rawwad.texture2.definitions
+    
+    texdefs =[]
+    if self.rawwad.texture1:
+      texdefs += self.rawwad.texture1.definitions
+    if self.rawwad.texture2:
+      texdefs += self.rawwad.texture2.definitions
+
     for texdef in texdefs:
       self.textures[texdef[0]] = texdef
