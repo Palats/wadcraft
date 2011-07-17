@@ -6,7 +6,7 @@ A dumb Doom WAD level to Minecraft map fragment converter.
 
 Basic usage, it's extremely rough:
 
- - First you need to setup it. Given that it needs the [NBT library](https://github.com/twoolie/NBT), something along those lines should do the trick:
+ - First you need to setup it. Given that it needs the [NBT library](https://github.com/twoolie/NBT) and [python colormap](http://code.google.com/p/python-colormath/), something along those lines should do the trick:
 
         wget 'http://bitbucket.org/ianb/virtualenv/raw/tip/virtualenv.py'
         python virtualenv.py --no-site-packages --distribute env
