@@ -21,9 +21,9 @@ Basic usage, it's extremely rough:
 
    glbsp creates geometry information suitable for opengl, such as convex sector with clockwise segment, which is useful for wadcraft too.
 
- - Then you can run it with the main iwad. By default it extracts E1M1, so you need a doom 1 iwad, but it's trivial to change the level name in main.py
+ - Then you can run it with the main iwad: 
 
-        wadcraft doom.wad 
+        wadcraft --iwad doom.wad --level E1M1
     
  - That will generate a level.schematic file, that you can load into minecraft with various world editor. With WorldEdit, an in-game editor, you just need to move the schematic file in the right place, and then:
 
